@@ -34,7 +34,7 @@ describe("relativeTime", () => {
 
   it("returns a time value (week test)", function () {
     const now = new Date();
-    now.setHours(now.getHours() - 168);
+    now.setTime(now.getTime() - 168 * 60 * 60 * 1000);
     const result = relativeTime(now, t);
     expect(result).toEqual("{{ count }} week ago");
   });
