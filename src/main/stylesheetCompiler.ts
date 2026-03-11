@@ -24,7 +24,7 @@ export default class StylesheetCompiler {
 
     log(
       "debug",
-      "using laod paths for stylesheet compilation",
+      "using load paths for stylesheet compilation",
       this.#loadPaths,
     );
 

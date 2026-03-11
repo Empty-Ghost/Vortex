@@ -141,13 +141,9 @@ class MainWindow {
     }
     this.mWindow.webContents.on(
       "console-message",
-      (_evt: Electron.Event, level: number, message: string) => {
-        if (level !== 2) {
-          // TODO: at the time of writing (electron 2.0.3) this event doesn't seem to
-          //   provide the other parameters of the message.
-          //   That is actually a known issue in chrome but the chrome people don't seem to care too
-          //   much and wait for a PR by the electron people but those have closed the issue. fun
-          log("info", message);
+      (evt: Electron.Event<Electron.WebContentsConsoleMessageEventParams>) => {
+        if (evt.level !== "error") {
+          log("info", evt.message);
         } else if (cancelTimer === undefined) {
           // if an error is logged by the renderer and the window isn't shown within a reasonable
           // time, it was probably something terminal.

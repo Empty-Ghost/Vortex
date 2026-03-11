@@ -21,7 +21,12 @@
     "publisherName": ["Black Tree Gaming Limited", "Black Tree Gaming Ltd"],
     "signingHashAlgorithms": ["sha256"],
     "rfc3161TimeStampServer": "http://timestamp.comodoca.com/rfc3161",
-    "timeStampServer": "http://timestamp.comodoca.com"
+    "timeStampServer": "http://timestamp.comodoca.com",
+    "extraResources": [
+      "./build/VC_redist.x64.exe",
+      "./build/windowsdesktop-runtime-win-x64.exe",
+      "./nsis/**/*"
+    ]
   },
   "nsis": {
     "perMachine": true,
@@ -45,20 +50,17 @@
     "mimeTypes": ["x-scheme-handler/nxm"]
   },
   "rpm": {
-    "release": "1",
     "depends": [
       "libXScrnSaver",
       "libXtst",
       "nss",
       "alsa-lib",
       "gtk3",
-      "libnotify"
+      "libnotify",
+      "xdg-utils"
     ]
   },
   "extraResources": [
-    "./build/VC_redist.x64.exe",
-    "./build/windowsdesktop-runtime-win-x64.exe",
-    "./nsis/**/*",
     {
       "from": "../../locales",
       "to": "locales"
@@ -74,6 +76,7 @@
     "node_modules/react-select/scss",
     "node_modules/fomod-installer-native/dist/*.dll",
     "node_modules/fomod-installer-ipc/dist/*.exe",
+    "assets/dotnetprobe",
     "assets/*.exe",
     "assets/css/**",
     "**/*.node"

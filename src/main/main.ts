@@ -157,17 +157,21 @@ async function main(): Promise<void> {
     app.commandLine.appendSwitch("--disable-gpu");
   }
 
-  app.commandLine.appendSwitch("disable-features", "WidgetLayering");
   app.commandLine.appendSwitch(
     "disable-features",
-    "UseEcoQoSForBackgroundProcess",
+    "WidgetLayering,UseEcoQoSForBackgroundProcess",
   );
+
+  if (process.platform === "linux") {
+    // On Wayland (default on Fedora/GNOME), Electron needs explicit ozone configuration
+    // to avoid GTK signal handler lifecycle errors in browser_main_loop that can hang startup.
+    app.commandLine.appendSwitch("ozone-platform-hint", "auto");
+  }
 
   createMainTelemetryProvider();
 
   initIpcHandlers();
   initTelemetryIpcHandler();
-  StylesheetCompiler.init();
 
   // --run has to be evaluated *before* we request the single instance lock!
   if (mainArgs.run !== undefined) {
@@ -260,6 +264,7 @@ async function main(): Promise<void> {
   }
 
   application = new Application(mainArgs);
+  StylesheetCompiler.init();
 }
 
 main().catch((err: unknown) => console.error("failed to start", err));

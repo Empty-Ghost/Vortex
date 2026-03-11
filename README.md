@@ -260,6 +260,37 @@ If issues persist after trying these solutions:
 2. Ensure your Windows system is up to date
 3. Try running individual installation commands manually to isolate the problem
 
+## Building on Linux (RPM)
+
+Vortex can be packaged as an RPM for Fedora/RHEL-based distributions.
+
+### Requirements
+
+- Node.js 22.x and PNPM (see setup in AGENTS.md)
+- Yarn 1.x (for bundled extension subproject builds)
+- `rpm-build` package: `sudo dnf install rpm-build`
+- RPM runtime dependencies (installed automatically on target system):
+  `libXScrnSaver`, `libXtst`, `nss`, `alsa-lib`, `gtk3`, `libnotify`
+
+### Build Steps
+
+```bash
+# 1. Install dependencies
+pnpm run build:fomod && pnpm install
+
+# 2. Build the RPM package
+pnpm run package:linux
+```
+
+The `package:linux` script runs the full production pipeline:
+
+1. `dist:all` — TypeScript compilation + webpack bundles for all packages
+2. `assets:dist` — copies runtime assets into the staging directory
+3. `subprojects:dist` — builds bundled extensions
+4. `electron-builder` — produces the `.rpm` in `src/main/dist/`
+
+The output RPM will be in `src/main/dist/`.
+
 ## Development Decisions
 
 The following section aims to clarify and explain a few development decisions.

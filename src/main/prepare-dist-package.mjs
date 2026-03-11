@@ -7,6 +7,16 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = resolve(__dirname, "..", "..");
 const ROOT_PACKAGE_PATH = resolve(ROOT_DIR, "package.json");
 const PNPM_WORKSPACE_PATH = resolve(ROOT_DIR, "pnpm-workspace.yaml");
+const SHARED_CONSTANTS_PATH = resolve(ROOT_DIR, "src/shared/src/constants.ts");
+
+/** Read VORTEX_VERSION from src/shared/src/constants.ts */
+async function readVortexVersion() {
+  const text = await readFile(SHARED_CONSTANTS_PATH, "utf8");
+  const major = text.match(/VORTEX_MAJOR\s*:\s*string\s*=\s*"(\d+)"/)?.[1] ?? "0";
+  const minor = text.match(/VORTEX_MINOR\s*:\s*string\s*=\s*"(\d+)"/)?.[1] ?? "0";
+  const patch = text.match(/VORTEX_PATCH\s*:\s*string\s*=\s*"(\d+)"/)?.[1] ?? "0";
+  return `${major}.${minor}.${patch}`;
+}
 
 const MAIN_DIR = resolve(__dirname);
 const MAIN_PACKAGE_PATH = resolve(MAIN_DIR, "package.json");
@@ -164,13 +174,16 @@ async function createMinimalPackageJson(workspacePackageMap, catalog) {
   const rootRawJSON = await readFile(ROOT_PACKAGE_PATH, "utf8");
   const rootPkg = JSON.parse(rootRawJSON);
 
+  const vortexVersion = await readVortexVersion();
+
   const minimal = {
     name: "Vortex",
-    version: "2.0.0",
+    version: vortexVersion,
     main: "main.js",
     author: "Black Tree Gaming Ltd.",
     description:
       "The elegant, powerful, and open-source mod manager from Nexus Mods",
+    homepage: "https://www.nexusmods.com/site/mods/1",
     license: "GPL-3.0",
     type: mainPkg.type,
     packageManager: rootPkg.packageManager,

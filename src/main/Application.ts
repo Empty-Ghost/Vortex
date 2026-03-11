@@ -166,6 +166,14 @@ class Application {
       vortexPaths: vortexPaths,
     });
 
+    this.mBasePath = app.getPath("userData");
+    mkdirSync(this.mBasePath, { recursive: true });
+
+    const enableLogging =
+      process.env.NODE_ENV === "development" ||
+      process.env.VORTEX_ENABLE_LOGGING === "1";
+    setupLogging(this.mBasePath, enableLogging);
+
     // Set up main process extensions IPC handlers
     setupMainExtensions();
 
@@ -174,9 +182,6 @@ class Application {
       "js-flags",
       `--max-old-space-size=${args.maxMemory || 4096}`,
     );
-
-    this.mBasePath = app.getPath("userData");
-    mkdirSync(this.mBasePath, { recursive: true });
 
     setVortexPath("temp", () => path.join(getVortexPath("userData"), "temp"));
     const tempPath = getVortexPath("temp");
@@ -195,10 +200,6 @@ class Application {
       path.join(tempPath, "dumps", `crash-main-${Date.now()}.dmp`),
     );
 
-    const enableLogging =
-      process.env.NODE_ENV === "development" ||
-      process.env.VORTEX_ENABLE_LOGGING === "1";
-    setupLogging(app.getPath("userData"), enableLogging);
     this.setupAppEvents(args);
   }
 
@@ -611,7 +612,7 @@ class Application {
     }
 
     const uacEnabled = this.isUACEnabled();
-    const result = await dialog.showMessageBox(this.mMainWindow.getHandle(), {
+    const result = await dialog.showMessageBox(this.mMainWindow?.getHandle() ?? null, {
       title: "Admin rights detected",
       message:
         `Vortex has detected that it is being run with administrator rights. It is strongly
@@ -654,7 +655,7 @@ class Application {
     }
 
     if (isMajorDowngrade(lastVersion, currentVersion)) {
-      const res = dialog.showMessageBoxSync(this.mMainWindow.getHandle(), {
+      const res = dialog.showMessageBoxSync(this.mMainWindow?.getHandle() ?? null, {
         type: "warning",
         title: "Downgrade detected",
         message: `You're using a version of Vortex that is older than the version you ran previously.
@@ -800,7 +801,7 @@ class Application {
 
       return muPath;
     } else {
-      log("error", "Multi-User mode not implemented outside windows");
+      log("info", "Multi-User mode not implemented outside windows");
       return app.getPath("userData");
     }
   }
