@@ -50,6 +50,7 @@
     "mimeTypes": ["x-scheme-handler/nxm"]
   },
   "rpm": {
+    "afterRemove": "./linux/after-remove.sh",
     "depends": [
       "libXScrnSaver",
       "libXtst",
