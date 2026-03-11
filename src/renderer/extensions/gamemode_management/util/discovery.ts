@@ -46,6 +46,64 @@ interface IFileEntry {
   application: ITool;
 }
 
+function splitPathComponents(inputPath: string): string[] {
+  return inputPath.split(/[/\\]/).filter(Boolean);
+}
+
+function requiredFileCandidates(requiredFile: string): string[] {
+  const ext = path.extname(requiredFile).toLowerCase();
+  if (ext === "") {
+    return [requiredFile, `${requiredFile}.exe`];
+  }
+  if (ext === ".exe") {
+    return [requiredFile, requiredFile.slice(0, -4)];
+  }
+  return [requiredFile];
+}
+
+function statCaseInsensitive(
+  basePath: string,
+  components: string[],
+): Bluebird<void> {
+  if (components.length === 0) {
+    return Bluebird.resolve();
+  }
+  const [head, ...tail] = components;
+  return Bluebird.resolve(fsExtra.readdir(basePath)).then((entries) => {
+    const headLower = head.toLowerCase();
+    const match = entries.find((entry) => entry.toLowerCase() === headLower);
+    if (match === undefined) {
+      const err: any = new Error(
+        `ENOENT: no such file or directory, '${path.join(basePath, head)}'`,
+      );
+      err.code = "ENOENT";
+      return Bluebird.reject(err);
+    }
+    return statCaseInsensitive(path.join(basePath, match), tail);
+  });
+}
+
+function statRequiredFile(
+  basePath: string,
+  requiredFile: string,
+  caseSensitive: boolean,
+): Bluebird<void> {
+  const candidates = requiredFileCandidates(requiredFile);
+
+  return Bluebird.any(
+    candidates.map((candidate) =>
+      Bluebird.resolve(fsExtra.stat(path.join(basePath, candidate))).catch(
+        (err) => {
+          if (err.code === "ENOENT" && caseSensitive) {
+            return statCaseInsensitive(basePath, splitPathComponents(candidate));
+          }
+          return Bluebird.reject(err);
+        },
+      ),
+    ),
+  ).then(() => undefined);
+}
+
 export function quickDiscoveryTools(
   gameId: string,
   tools: ITool[],
@@ -467,11 +525,17 @@ function walk(
               seenTL.add(entry.filePath);
             }
           }
-        } else if (matchList.has(normalize(path.basename(entry.filePath)))) {
-          log("info", "potential match", entry.filePath);
-          // notify that a searched file was found. If the CB says so
-          // we stop looking at this directory
-          resultCB(entry.filePath);
+        } else {
+          const baseName = normalize(path.basename(entry.filePath));
+          if (
+            matchList.has(baseName) ||
+            matchList.has(baseName.toLowerCase())
+          ) {
+            log("info", "potential match", entry.filePath);
+            // notify that a searched file was found. If the CB says so
+            // we stop looking at this directory
+            resultCB(entry.filePath);
+          }
         }
       });
       if (progress) {
@@ -489,16 +553,21 @@ function walk(
 }
 
 function verifyToolDir(tool: ITool, testPath: string): Bluebird<void> {
-  return Bluebird.mapSeries(
-    tool.requiredFiles,
-    // our fs overload would try to acquire access to the directory if it's locked, which
-    // is not something we want at this point because we don't even know yet if the user
-    // wants to manage the game at all.
-    (fileName: string) =>
-      fsExtra.stat(path.join(testPath, fileName)).catch((err) => {
-        return Bluebird.reject(err);
-      }),
-  ).then(() => undefined);
+  return getNormalizeFunc(testPath)
+    .then((normalize) => {
+      const caseSensitive = normalize("a") !== normalize("A");
+      return Bluebird.mapSeries(
+        tool.requiredFiles,
+        // our fs overload would try to acquire access to the directory if it's locked, which
+        // is not something we want at this point because we don't even know yet if the user
+        // wants to manage the game at all.
+        (fileName: string) =>
+          statRequiredFile(testPath, fileName, caseSensitive).catch((err) =>
+            Bluebird.reject(err),
+          ),
+      );
+    })
+    .then(() => undefined);
 }
 
 export function assertToolDir(tool: ITool, testPath: string): Bluebird<string> {
@@ -562,10 +631,12 @@ export function discoverRelativeTools(
   const files: IFileEntry[] = relativeTools.reduce(
     (prev: IFileEntry[], tool: ITool) => {
       for (const required of tool.requiredFiles) {
-        prev.push({
-          fileName: normalize(required),
-          gameId: game.id,
-          application: tool,
+        requiredFileCandidates(required).forEach((candidate) => {
+          prev.push({
+            fileName: normalize(candidate),
+            gameId: game.id,
+            application: tool,
+          });
         });
       }
       return prev;
@@ -574,7 +645,10 @@ export function discoverRelativeTools(
   );
 
   const matchList: Set<string> = new Set(
-    files.map((entry) => path.basename(entry.fileName)),
+    files.flatMap((entry) => {
+      const baseName = path.basename(entry.fileName);
+      return [baseName, baseName.toLowerCase()];
+    }),
   );
 
   const onFileCB = (filePath) =>
@@ -662,10 +736,12 @@ function toolFilesForGame(
           getSafe(discoveredTools, [tool.id, "path"], undefined) === undefined
         ) {
           for (const required of tool.requiredFiles) {
-            result.push({
-              fileName: normalize(required),
-              gameId: game.id,
-              application: tool,
+            requiredFileCandidates(required).forEach((candidate) => {
+              result.push({
+                fileName: normalize(candidate),
+                gameId: game.id,
+                application: tool,
+              });
             });
           }
         }
@@ -683,8 +759,10 @@ function onFile(
   onDiscoveredTool: DiscoveredToolCB,
 ) {
   const normalized = normalize(filePath);
+  const normalizedLower = normalized.toLowerCase();
   const matches: IFileEntry[] = files.filter((entry) =>
-    normalized.endsWith(entry.fileName),
+    normalized.endsWith(entry.fileName) ||
+    normalizedLower.endsWith(entry.fileName.toLowerCase()),
   );
 
   for (const match of matches) {
@@ -755,10 +833,12 @@ export function searchDiscovery(
             // the game itself
             if (discoveredGame?.path === undefined) {
               for (const required of knownGame.requiredFiles) {
-                files.push({
-                  fileName: normalize(required),
-                  gameId: knownGame.id,
-                  application: knownGame,
+                requiredFileCandidates(required).forEach((candidate) => {
+                  files.push({
+                    fileName: normalize(candidate),
+                    gameId: knownGame.id,
+                    application: knownGame,
+                  });
                 });
               }
             }
@@ -776,7 +856,10 @@ export function searchDiscovery(
           // retrieve only the basenames of required files because the walk only ever looks
           // at the last path component of a file
           const matchList: Set<string> = new Set(
-            files.map((entry) => path.basename(entry.fileName)),
+            files.flatMap((entry) => {
+              const baseName = path.basename(entry.fileName);
+              return [baseName, baseName.toLowerCase()];
+            }),
           );
           const onFileCB = (filePath: string) =>
             onFile(

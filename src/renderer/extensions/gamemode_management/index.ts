@@ -41,6 +41,7 @@ import {
 } from "../../util/CustomErrors";
 import * as fs from "../../util/fs";
 import GameStoreHelper from "../../util/GameStoreHelper";
+import getNormalizeFunc from "../../util/getNormalizeFunc";
 import local from "../../util/local";
 import { log } from "../../util/log";
 import { showError } from "../../util/message";
@@ -214,10 +215,117 @@ function refreshGameInfo(
   }).then(() => undefined);
 }
 
-function verifyGamePath(game: IGame, gamePath: string): PromiseBB<void> {
-  return PromiseBB.map(game.requiredFiles || [], (file) =>
-    PromiseBB.resolve(fsExtra.stat(path.join(gamePath, file))),
-  )
+// On case-sensitive filesystems (Linux ext4/btrfs), traverse each path component
+// using readdir so that Windows-cased requiredFiles (e.g. bin/x64/witcher3.exe)
+// still match the actual on-disk casing.
+export function statCaseInsensitive(
+  basePath: string,
+  components: string[],
+): PromiseBB<void> {
+  if (components.length === 0) {
+    return PromiseBB.resolve();
+  }
+  const [head, ...tail] = components;
+  return PromiseBB.resolve(fsExtra.readdir(basePath)).then((entries) => {
+    const headLower = head.toLowerCase();
+    const match = entries.find((e) => e.toLowerCase() === headLower);
+    if (match === undefined) {
+      const err: any = new Error(
+        `ENOENT: no such file or directory, '${path.join(basePath, head)}'`,
+      );
+      err.code = "ENOENT";
+      return PromiseBB.reject(err);
+    }
+    return statCaseInsensitive(path.join(basePath, match), tail);
+  });
+}
+
+function splitPathComponents(inputPath: string): string[] {
+  return inputPath.split(/[/\\]/).filter(Boolean);
+}
+
+function requiredFileCandidates(requiredFile: string): string[] {
+  const ext = path.extname(requiredFile).toLowerCase();
+  if (ext === "") {
+    return [requiredFile, `${requiredFile}.exe`];
+  }
+  if (ext === ".exe") {
+    return [requiredFile, requiredFile.slice(0, -4)];
+  }
+  return [requiredFile];
+}
+
+function statRequiredFile(
+  gamePath: string,
+  requiredFile: string,
+  caseSensitive: boolean,
+): PromiseBB<void> {
+  const candidates = requiredFileCandidates(requiredFile);
+
+  return PromiseBB.all(
+    candidates.map((candidate) =>
+      PromiseBB.resolve(fsExtra.stat(path.join(gamePath, candidate)))
+        .catch((err) => {
+          if (err.code === "ENOENT" && caseSensitive) {
+            return statCaseInsensitive(gamePath, splitPathComponents(candidate));
+          }
+          return PromiseBB.reject(err);
+        })
+        .reflect()
+        .then((inspection) => ({ candidate, inspection })),
+    ),
+  ).then((attempts) => {
+    if (attempts.some((attempt) => attempt.inspection.isFulfilled())) {
+      return undefined;
+    }
+
+    const candidateFailures = attempts.map((attempt) => {
+      const reason = attempt.inspection.isRejected()
+        ? attempt.inspection.reason()
+        : undefined;
+      return {
+        candidate: attempt.candidate,
+        code: reason !== undefined ? getErrorCode(reason) : undefined,
+        error:
+          reason !== undefined ? getErrorMessageOrDefault(reason) : "unknown",
+      };
+    });
+
+    const firstNonENOENT = attempts.find((attempt) => {
+      if (!attempt.inspection.isRejected()) {
+        return false;
+      }
+      const code = getErrorCode(attempt.inspection.reason());
+      return code !== "ENOENT";
+    });
+
+    const err: any =
+      firstNonENOENT !== undefined
+        ? firstNonENOENT.inspection.reason()
+        : new Error(
+            `ENOENT: no such file or directory, '${path.join(gamePath, requiredFile)}'`,
+          );
+    if (err.code === undefined) {
+      err.code =
+        firstNonENOENT === undefined
+          ? "ENOENT"
+          : getErrorCode(firstNonENOENT.inspection.reason());
+    }
+    err.requiredFile = requiredFile;
+    err.candidatesTried = candidates;
+    err.candidateFailures = candidateFailures;
+    return PromiseBB.reject(err);
+  });
+}
+
+export function verifyGamePath(game: IGame, gamePath: string): PromiseBB<void> {
+  return getNormalizeFunc(gamePath)
+    .then((normalize) => {
+      const caseSensitive = normalize("a") !== normalize("A");
+      return PromiseBB.map(game.requiredFiles || [], (file) =>
+        statRequiredFile(gamePath, file, caseSensitive),
+      );
+    })
     .then(() => undefined)
     .catch((err) => {
       // if the error is anything other than "the file doesn't exist" we assume
@@ -382,7 +490,16 @@ function browseGameLocation(
             }
             resolve();
           })
-          .catch(() => {
+          .catch((err) => {
+            log("debug", "manual game location validation failed", {
+              gameId,
+              selectedPath: result,
+              requiredFiles: game.requiredFiles,
+              failedRequiredFile: err?.requiredFile,
+              candidatesTried: err?.candidatesTried,
+              candidateFailures: err?.candidateFailures,
+              error: getErrorMessageOrDefault(err),
+            });
             api.store.dispatch(
               showDialog(
                 "error",
@@ -506,9 +623,14 @@ function removeDisappearedGames(
     if (requiredFiles === undefined) {
       return PromiseBB.resolve();
     }
-    return PromiseBB.map(requiredFiles, (file) =>
-      fsExtra.stat(path.join(discovered[gameId].path, file)),
-    )
+    const gamePath = discovered[gameId].path;
+    return getNormalizeFunc(gamePath)
+      .then((normalize) => {
+        const caseSensitive = normalize("a") !== normalize("A");
+        return PromiseBB.map(requiredFiles, (file) =>
+          statRequiredFile(gamePath, file, caseSensitive),
+        );
+      })
       .then(() => undefined)
       .catch((err) => {
         if (err.code === "ENOENT") {
