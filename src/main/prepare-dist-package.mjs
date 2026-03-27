@@ -167,10 +167,11 @@ async function createMinimalPackageJson(workspacePackageMap, catalog) {
   const minimal = {
     name: "Vortex",
     version: process.env.VORTEX_VERSION || "1.0.0",
-    main: "main.mjs",
+    main: "main.cjs",
     author: "Black Tree Gaming Ltd.",
     description:
       "The elegant, powerful, and open-source mod manager from Nexus Mods",
+    homepage: "https://www.nexusmods.com/about/vortex/",
     license: "GPL-3.0",
     type: mainPkg.type,
     packageManager: rootPkg.packageManager,

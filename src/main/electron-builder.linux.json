@@ -1,0 +1,34 @@
+{
+  "$schema": "https://github.com/electron-userland/electron-builder/raw/refs/tags/v24.13.3/packages/app-builder-lib/scheme.json",
+  "extends": "./electron-builder.config.json",
+  "linux": {
+    "target": ["dir"],
+    "icon": "../../assets/images/vortex.png",
+    "category": "Game;Utility;",
+    "desktop": {
+      "Name": "Vortex",
+      "GenericName": "Mod Manager",
+      "Comment": "Mod manager for PC games from Nexus Mods",
+      "MimeType": "x-scheme-handler/nxm",
+      "StartupWMClass": "Vortex",
+      "Keywords": "mod;mods;modding;nexus;games;"
+    },
+    "mimeTypes": ["x-scheme-handler/nxm"]
+  },
+  "asarUnpack": [
+    "LICENSE.md",
+    "bundledPlugins",
+    "node_modules/7z-bin",
+    "node_modules/bootstrap-sass/assets/stylesheets",
+    "node_modules/react-select/scss",
+    "assets/dotnetprobe",
+    "assets/css/**",
+    "**/*.node"
+  ],
+  "extraResources": [
+    {
+      "from": "../../locales",
+      "to": "locales"
+    }
+  ]
+}
