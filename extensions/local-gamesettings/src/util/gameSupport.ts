@@ -147,6 +147,16 @@ export function gameSupported(gameMode: string): boolean {
 }
 
 export function mygamesPath(gameMode: string): string {
+  const discovery = discoveryForGame(gameMode);
+  // On Linux with Proton, game settings are stored inside the Proton prefix
+  if (process.platform !== "win32" && discovery?.compatDataPath) {
+    return path.join(
+      discovery.compatDataPath,
+      "pfx", "drive_c", "users", "steamuser", "Documents",
+      "My Games",
+      gameSupport.get(gameMode, "mygamesPath"),
+    );
+  }
   return path.join(
     util.getVortexPath("documents"),
     "My Games",

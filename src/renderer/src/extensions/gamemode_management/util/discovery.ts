@@ -273,6 +273,7 @@ function handleDiscoveredGame(
   discoveredGames: { [id: string]: IDiscoveryResult },
   onDiscoveredGame: DiscoveredCB,
   onDiscoveredTool: DiscoveredToolCB,
+  compatDataPath?: string,
 ): Bluebird<string> {
   if (!truthy(resolvedPath)) {
     return undefined;
@@ -283,6 +284,7 @@ function handleDiscoveredGame(
     path: resolvedPath,
     executable: exe !== game.executable() ? exe : undefined,
     store,
+    compatDataPath,
   };
   onDiscoveredGame(game.id, disco);
   return getNormalizeFunc(resolvedPath)
@@ -349,6 +351,7 @@ export function quickDiscovery(
                   discoveredGames,
                   onDiscoveredGame,
                   onDiscoveredTool,
+                  (result as any).compatDataPath,
                 );
               } else {
                 return Bluebird.resolve(undefined);

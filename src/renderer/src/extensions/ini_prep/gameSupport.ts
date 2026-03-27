@@ -207,7 +207,17 @@ const gameSupport = makeOverlayableDictionary<string, IGameSupport>(
 );
 
 export function iniFiles(gameMode: string, discovery: IDiscoveryResult) {
-  const mygames = path.join(getVortexPath("documents"), "My Games");
+  let mygames: string;
+  // On Linux with Proton, game settings are stored inside the Proton prefix
+  if (process.platform !== "win32" && discovery?.compatDataPath) {
+    mygames = path.join(
+      discovery.compatDataPath,
+      "pfx", "drive_c", "users", "steamuser", "Documents",
+      "My Games",
+    );
+  } else {
+    mygames = path.join(getVortexPath("documents"), "My Games");
+  }
 
   let store = discovery?.store;
 

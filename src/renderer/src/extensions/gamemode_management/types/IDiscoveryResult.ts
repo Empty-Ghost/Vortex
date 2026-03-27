@@ -33,4 +33,7 @@ export interface IDiscoveryResult {
   extensionPath?: string;
   mergeMods?: boolean;
   shell?: boolean;
+  // path to the Proton/Wine compatibility data directory (Linux only, Steam games using Proton)
+  // e.g. ~/.local/share/Steam/steamapps/compatdata/489830
+  compatDataPath?: string;
 }

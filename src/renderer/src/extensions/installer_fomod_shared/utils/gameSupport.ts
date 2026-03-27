@@ -580,7 +580,20 @@ export function initGameSupport(api: IExtensionApi) {
 }
 
 export function getIniFilePath(gameMode: string): string {
-  return gameSupport.get(gameMode, "iniPath")?.() ?? "";
+  const result = gameSupport.get(gameMode, "iniPath")?.() ?? "";
+  // On Linux with Proton, game settings are stored inside the Proton prefix
+  if (process.platform !== "win32" && result) {
+    const discovery = discoveryForGame(gameMode);
+    if (discovery?.compatDataPath) {
+      const nativeDocuments = getVortexPath("documents");
+      const protonDocuments = path.join(
+        discovery.compatDataPath,
+        "pfx", "drive_c", "users", "steamuser", "Documents",
+      );
+      return result.replace(nativeDocuments, protonDocuments);
+    }
+  }
+  return result;
 }
 
 export function getStopPatterns(gameMode: string, game: IGame): string[] {
